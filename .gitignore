@@ -2,10 +2,9 @@
 venv/
 __pycache__/
 *.pyc
-# 模型文件（体积大，单独用网盘/U 盘传递）
-*.tflite
-*.yml
+# 模型文件：leaf_model.tflite（2.4 MB）已纳入版本管理，clone 后可直接运行
 *.keras
+*.yml
 # 数据库（运行时生成）
 *.db
 # 截图和临时文件

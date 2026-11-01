@@ -103,5 +103,9 @@ python main.py
 
 ## 说明
 
-`detections.db`、`*.tflite`、`venv/` 等大文件已在 `.gitignore` 中排除，需单独分发。
-模型文件 `leaf_model.tflite` 请向组员索取。
+`detections.db`、`venv/`、`__pycache__/` 等运行时产物已在 `.gitignore` 中排除。
+模型文件 `flask_app/leaf_model.tflite`（2.4 MB）已随仓库提供，clone 后无需额外下载即可运行。
+
+模型输入为 224×224 的 RGB 图像，归一化到 [-1, 1]；输出为 2 维 softmax，
+顺序为 `["diseased", "healthy"]`（与 `tf.keras.utils.image_dataset_from_directory`
+按目录名字母序分配的下标一致）。
