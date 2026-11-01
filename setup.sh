@@ -4,9 +4,7 @@ set -e
 echo "===== 1. 更新系统 ====="
 sudo apt update
 echo "===== 2. 安装系统级依赖 ====="
-sudo apt install -y python3-picamera2 python3-libcamera libcamera-ap
-ps \
- python3-venv python3-pip git
+sudo apt install -y python3-picamera2 python3-libcamera libcamera-apps python3-venv python3-pip git
 echo "===== 3. 创建虚拟环境（必须加 --system-site-packages）====="
 cd ~/smart_system
 python3 -m venv --system-site-packages venv
