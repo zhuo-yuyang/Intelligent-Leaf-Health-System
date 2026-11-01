@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - 叶片健康数据分析</title>
+    <script src="/static/js/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Microsoft YaHei", Arial, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+        .header { background: linear-gradient(135deg, #16213e, #0f3460); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 20px; color: #00ff88; }
+        .nav-link { color: #00ff88; text-decoration: none; font-size: 14px; padding: 6px 12px; border: 1px solid #00ff88; border-radius: 5px; }
+        .main-content { padding: 15px; max-width: 1200px; margin: 0 auto; }
+        .stats-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 15px; }
+        .stat-card { background: linear-gradient(135deg, #16213e, #1a1a3e); border-radius: 10px; padding: 18px; text-align: center; border: 1px solid #0f3460; }
+        .stat-card .number { font-size: 28px; font-weight: bold; color: #00ff88; }
+        .stat-card .label { font-size: 13px; color: #888; margin-top: 5px; }
+        .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .chart-box { background: #16213e; border-radius: 10px; padding: 15px; border: 1px solid #0f3460; }
+        .chart-box h3 { font-size: 15px; color: #00ff88; margin-bottom: 10px; }
+        .chart-container { width: 100%; height: 250px; }
+        .table-box { background: #16213e; border-radius: 10px; padding: 15px; border: 1px solid #0f3460; margin-bottom: 15px; }
+        .table-box h3 { font-size: 15px; color: #00ff88; margin-bottom: 10px; display: flex; justify-content: space-between; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: #0f3460; padding: 10px; text-align: left; color: #00ff88; font-weight: normal; }
+        td { padding: 8px 10px; border-bottom: 1px solid #1a1a3e; }
+        .badge { padding: 3px 8px; border-radius: 10px; font-size: 11px; }
+        .badge-healthy { background: rgba(0, 255, 136, 0.2); color: #00ff88; }
+        .badge-diseased { background: rgba(255, 170, 0, 0.2); color: #ffaa00; }
+        .badge-unknown { background: rgba(140, 140, 140, 0.2); color: #999999; }
+        .btn-sm { padding: 4px 10px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; background: #00ff88; color: #1a1a2e; }
+        .settings-box { background: #16213e; border-radius: 10px; padding: 15px; border: 1px solid #0f3460; }
+        .settings-box h3 { font-size: 15px; color: #00ff88; margin-bottom: 10px; }
+        .setting-row { display: flex; gap: 15px; align-items: center; margin-bottom: 10px; }
+        .setting-row label { font-size: 13px; color: #aaa; min-width: 100px; }
+        .setting-row input { padding: 6px 10px; border: 1px solid #0f3460; border-radius: 4px; background: #1a1a2e; color: #eee; width: 120px; }
+        .btn-save { padding: 6px 20px; background: linear-gradient(135deg, #00ff88, #00cc66); border: none; border-radius: 5px; color: #1a1a2e; cursor: pointer; font-weight: bold; }
+        @media (max-width: 768px) { .stats-cards { grid-template-columns: repeat(2, 1fr); } .chart-row { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 管理后台 - 叶片健康数据分析</h1>
+        <a href="/" class="nav-link">← 返回终端控制</a>
+    </div>
+
+    <div class="main-content">
+        <div class="stats-cards">
+            <div class="stat-card"><div class="number" id="totalCount">--</div><div class="label">总检测数</div></div>
+            <div class="stat-card"><div class="number" id="todayCount">--</div><div class="label">今日检测</div></div>
+            <div class="stat-card"><div class="number" id="healthyRate">--</div><div class="label">健康率</div></div>
+            <div class="stat-card"><div class="number" id="diseasedRate">--</div><div class="label">病害率</div></div>
+        </div>
+
+        <div class="chart-row">
+            <div class="chart-box">
+                <h3>🌿 叶片健康分布</h3>
+                <div class="chart-container" id="pieChart"></div>
+            </div>
+            <div class="chart-box">
+                <h3>📈 健康 vs 病害统计</h3>
+                <div class="chart-container" id="barChart"></div>
+            </div>
+        </div>
+
+        <div class="table-box">
+            <h3>📋 历史检测记录 <button class="btn-sm" onclick="refreshHistory()">刷新</button></h3>
+            <table>
+                <thead><tr><th>ID</th><th>时间</th><th>结果</th><th>置信度</th></tr></thead>
+                <tbody id="historyTable"><tr><td colspan="4" style="text-align:center;color:#666;">加载中...</td></tr></tbody>
+            </table>
+        </div>
+
+        <div class="settings-box">
+            <h3>⚙️ 系统设置</h3>
+            <div class="setting-row">
+                <label>检测阈值</label>
+                <input type="number" id="settingThreshold" value="30">
+            </div>
+            <div class="setting-row">
+                <label>报警阈值</label>
+                <input type="number" id="settingAlarm" value="50">
+            </div>
+            <button class="btn-save" onclick="saveSettings()">保存设置</button>
+        </div>
+    </div>
+
+    <script>
+        // ECharts 优先用本地静态文件（/static/js/echarts.min.js），
+        // 断网、或浏览器 Tracking Prevention 拦截 CDN 存储时也能正常画图。
+        var pieChart = null, barChart = null;
+        if (typeof echarts !== 'undefined') {
+            pieChart = echarts.init(document.getElementById('pieChart'));
+            barChart = echarts.init(document.getElementById('barChart'));
+            window.addEventListener('resize', function () {
+                if (pieChart) pieChart.resize();
+                if (barChart) barChart.resize();
+            });
+        } else {
+            console.error('ECharts 未加载：请检查 flask_app/static/js/echarts.min.js 是否存在');
+            ['pieChart', 'barChart'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) {
+                    el.style.display = 'flex';
+                    el.style.alignItems = 'center';
+                    el.style.justifyContent = 'center';
+                    el.style.color = '#ff8888';
+                    el.textContent = '图表库未加载（static/js/echarts.min.js）';
+                }
+            });
+        }
+
+        function updateStatistics() {
+            fetch('/api/statistics').then(r => r.json()).then(data => {
+                const d = data.data || {};
+                document.getElementById('totalCount').textContent = d.total || 0;
+                document.getElementById('todayCount').textContent = d.today || 0;
+
+                // 后端已归一并给出固定键，这里不再自己猜 by_label 的键名
+                const byLabel = d.by_label || {};
+                const healthy = d.healthy !== undefined ? d.healthy : (byLabel.healthy || 0);
+                const diseased = d.diseased !== undefined ? d.diseased : (byLabel.diseased || 0);
+                const unknown = d.unknown !== undefined ? d.unknown : (byLabel.unknown || 0);
+
+                // 分母用「健康 + 病害」，未知类不计入比率，避免拉低/拉高
+                const base = healthy + diseased;
+                if (base > 0) {
+                    document.getElementById('healthyRate').textContent = (healthy / base * 100).toFixed(1) + '%';
+                    document.getElementById('diseasedRate').textContent = (diseased / base * 100).toFixed(1) + '%';
+                } else {
+                    document.getElementById('healthyRate').textContent = '--';
+                    document.getElementById('diseasedRate').textContent = '--';
+                }
+                updatePieChart(healthy, diseased, unknown);
+                updateBarChart(healthy, diseased, unknown);
+            }).catch(e => console.error("Statistics API Error:", e));
+        }
+
+        function updatePieChart(healthy, diseased, unknown) {
+            if (!pieChart) return;
+            pieChart.setOption({
+                tooltip: { trigger: 'item' },
+                legend: { bottom: 0, textStyle: { color: '#888' } },
+                series: [{
+                    type: 'pie', radius: ['40%', '65%'], center: ['50%', '45%'],
+                    data: [
+                        { value: healthy, name: '健康', itemStyle: { color: '#5b6fdd' } },
+                        { value: diseased, name: '病害', itemStyle: { color: '#00ff88' } },
+                        { value: unknown, name: '未知', itemStyle: { color: '#888888' } }
+                    ],
+                    label: { color: '#eee', fontSize: 12 },
+                    itemStyle: { borderColor: '#16213e', borderWidth: 2 }
+                }]
+            }, true);
+        }
+
+        function updateBarChart(healthy, diseased, unknown) {
+            if (!barChart) return;
+            barChart.setOption({
+                tooltip: { trigger: 'axis' },
+                grid: { left: 50, right: 30, top: 30, bottom: 40 },
+                xAxis: {
+                    type: 'category',
+                    data: ['健康', '病害', '未知'],
+                    axisLabel: { color: '#888' }
+                },
+                yAxis: { type: 'value', axisLabel: { color: '#888' } },
+                series: [{
+                    data: [healthy, diseased, unknown], type: 'bar', barWidth: '45%',
+                    itemStyle: {
+                        color: function (p) {
+                            return ['#00ff88', '#ffaa00', '#888888'][p.dataIndex];
+                        }
+                    },
+                    label: { show: true, position: 'top', color: '#ddd' }
+                }]
+            }, true);
+        }
+
+        function refreshHistory() {
+            const tbody = document.getElementById('historyTable');
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#00ff88;">数据加载中...</td></tr>';
+
+            fetch('/api/history?limit=20').then(r => r.json()).then(data => {
+                const tbody = document.getElementById('historyTable');
+                if (!data.data || data.data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#666;">暂无记录</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.data.map(row => {
+                    const label = row.result_label;
+                    const map = {
+                        healthy: ['badge-healthy', '健康'],
+                        diseased: ['badge-diseased', '病害'],
+                    };
+                    const [cls, txt] = map[label] || ['badge-unknown', '未知'];
+                    const conf = (row.confidence !== null && row.confidence !== undefined && row.confidence > 0)
+                        ? (row.confidence * 100).toFixed(1) + '%' : '--';
+                    return `<tr>
+                        <td>${row.id}</td>
+                        <td>${row.timestamp || '-'}</td>
+                        <td><span class="badge ${cls}">${txt}</span></td>
+                        <td>${conf}</td>
+                    </tr>`;
+                }).join('');
+            }).catch(e => {
+                console.error("History API Error:", e);
+                document.getElementById('historyTable').innerHTML = '<tr><td colspan="4" style="text-align:center;color:#ff4444;">加载失败</td></tr>';
+            });
+        }
+
+        function saveSettings() {
+            const data = {
+                threshold: document.getElementById('settingThreshold').value,
+                alarm: document.getElementById('settingAlarm').value
+            };
+            fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(r => r.json()).then(d => alert(d.message || '保存成功'))
+            .catch(e => {
+                console.error("Save Error:", e);
+                alert("保存失败：无法连接到服务器");
+            });
+        }
+
+        setInterval(updateStatistics, 5000);
+        updateStatistics(); 
+        refreshHistory();
+
+        window.addEventListener('resize', () => { pieChart.resize(); barChart.resize(); });
+    </script>
+</body>
+</html>

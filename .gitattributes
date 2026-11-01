@@ -1,0 +1,9 @@
+# 统一换行符：仓库内一律用 LF，避免在 Linux（树莓派）上运行脚本时报 \r 错误
+* text=auto eol=lf
+*.sh text eol=lf
+*.service text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf

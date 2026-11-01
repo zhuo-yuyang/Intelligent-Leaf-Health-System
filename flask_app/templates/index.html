@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能植物叶片健康监测系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Microsoft YaHei", Arial, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+        .header { background: linear-gradient(135deg, #16213e, #0f3460); padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; height: 30px; }
+        .header h1 { font-size: 12px; color: #00ff88; white-space: nowrap; }
+        .status-badge { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #00ff88; animation: pulse 1.5s infinite; }
+        .status-dot.stopped { background: #ff4444; animation: none; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .nav-link { color: #00ff88; text-decoration: none; font-size: 11px; padding: 3px 8px; border: 1px solid #00ff88; border-radius: 4px; }
+        .main-content { padding: 4px; max-width: 100%; margin: 0 auto; }
+        .video-container { position: relative; background: #000; border-radius: 6px; overflow: hidden; margin-bottom: 4px; width: 100%; }
+        .video-container img { width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover; }
+        .video-overlay { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.7); padding: 2px 6px; border-radius: 8px; font-size: 9px; color: #00ff88; }
+        .result-bar { background: #16213e; border-radius: 5px; padding: 4px 10px; margin-bottom: 4px; border-left: 3px solid #00ff88; display: flex; justify-content: space-between; align-items: center; }
+        .result-item { display: flex; flex-direction: row; align-items: center; gap: 4px; }
+        .result-item .label { font-size: 10px; color: #888; }
+        .result-item .value { font-size: 12px; font-weight: bold; color: #00ff88; }
+        .result-item .value.warning { color: #ffaa00; }
+        .control-bar { display: flex; gap: 5px; margin-bottom: 4px; }
+        .btn { flex: 1; padding: 10px 6px; border: none; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 40px; }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: linear-gradient(135deg, #00ff88, #00cc66); color: #1a1a2e; }
+        .btn-danger { background: linear-gradient(135deg, #ff4444, #cc0000); color: #fff; }
+        .btn-warning { background: linear-gradient(135deg, #ffaa00, #cc8800); color: #fff; }
+        .stats-bar { display: flex; justify-content: space-around; background: #16213e; border-radius: 5px; padding: 3px; font-size: 10px; }
+        .stat-item { text-align: center; }
+        .stat-item .stat-value { font-size: 11px; font-weight: bold; color: #00ff88; }
+        .stat-item .stat-label { color: #888; font-size: 9px; margin-top: 1px; }
+
+        /* PC端适配 */
+        @media (min-width: 769px) {
+            .header { padding: 15px 25px; height: auto; }
+            .header h1 { font-size: 20px; }
+            .status-badge { font-size: 14px; }
+            .status-dot { width: 10px; height: 10px; }
+            .nav-link { font-size: 14px; padding: 6px 12px; }
+            .main-content { padding: 20px; max-width: 1100px; }
+            .video-container img { max-height: 540px; }
+            .video-overlay { top: 10px; left: 10px; padding: 5px 12px; font-size: 13px; }
+            .result-bar { padding: 12px 20px; margin-bottom: 12px; }
+            .result-item { gap: 8px; }
+            .result-item .label { font-size: 14px; }
+            .result-item .value { font-size: 20px; }
+            .control-bar { gap: 12px; margin-bottom: 12px; }
+            .btn { padding: 15px 30px; font-size: 16px; min-height: 60px; border-radius: 10px; }
+            .stats-bar { padding: 12px; font-size: 14px; }
+            .stat-item .stat-value { font-size: 18px; }
+            .stat-item .stat-label { font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌿 叶片健康监测</h1>
+        <div class="status-badge">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">运行中</span>
+        </div>
+        <a href="/dashboard" class="nav-link">后台</a>
+    </div>
+
+    <div class="main-content">
+        <div class="video-container">
+            <img src="/video_feed" alt="叶片检测画面">
+            <div class="video-overlay">叶片检测中</div>
+        </div>
+
+        <div class="result-bar">
+            <div class="result-item">
+                <span class="label">叶片状态:</span>
+                <span class="value" id="latestResult">--</span>
+            </div>
+            <div class="result-item">
+                <span class="label">置信度:</span>
+                <span class="value" id="confidence">--</span>
+            </div>
+            <div class="result-item">
+                <span class="label">病害:</span>
+                <span class="value" id="diseaseRatio">--</span>
+            </div>
+        </div>
+
+        <div class="control-bar">
+            <button class="btn btn-primary" onclick="startDetection()">▶ 启动</button>
+            <button class="btn btn-danger" onclick="stopDetection()">⏸ 停止</button>
+            <button class="btn btn-warning" onclick="captureImage()">📷 拍照</button>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat-item"><div class="stat-value" id="fps">--</div><div class="stat-label">FPS</div></div>
+            <div class="stat-item"><div class="stat-value" id="frameCount">--</div><div class="stat-label">帧数</div></div>
+            <div class="stat-item"><div class="stat-value" id="runTime">00:00:00</div><div class="stat-label">运行时间</div></div>
+        </div>
+    </div>
+
+    <script>
+        function updateStatus() {
+            fetch('/api/status').then(r => r.json()).then(data => {
+                const d = data.data;
+                document.getElementById('fps').textContent = d.fps || '--';
+                document.getElementById('frameCount').textContent = d.frame_count || '--';
+                const dot = document.getElementById('statusDot');
+                const txt = document.getElementById('statusText');
+                if (d.detection_enabled) {
+                    dot.className = 'status-dot'; txt.textContent = '运行中';
+                } else {
+                    dot.className = 'status-dot stopped'; txt.textContent = '已停止';
+                }
+            }).catch(e => console.error("Status API Error:", e));
+        }
+
+        function updateLatest() {
+            const resultEl = document.getElementById('latestResult');
+            resultEl.textContent = '加载中...'; 
+
+            fetch('/api/latest').then(r => r.json()).then(data => {
+                const d = data.data || {};
+                const resultEl = document.getElementById('latestResult');
+                const confEl = document.getElementById('confidence');
+                const ratioEl = document.getElementById('diseaseRatio');
+                
+                // 以视觉模块给出的 status 为准（healthy / suspicious / diseased / unknown）
+                // 没有 status 时才退回 AI 的 label
+                let status = d.status || d.label || 'unknown';
+                if (status === 'suspicious') status = 'unknown';
+
+                const textMap = { healthy: '健康', diseased: '病害', unknown: '未知' };
+                resultEl.textContent = textMap[status] || status;
+                resultEl.className = 'value' + (status === 'diseased' ? ' warning' : '');
+
+                confEl.textContent = (d.confidence !== undefined && d.confidence !== null)
+                    ? (d.confidence * 100).toFixed(1) + '%' : '--';
+                ratioEl.textContent = (d.disease_ratio !== undefined && d.disease_ratio !== null)
+                    ? (d.disease_ratio * 100).toFixed(1) + '%' : '--';
+            }).catch(e => {
+                console.error("Latest API Error:", e);
+                resultEl.textContent = '网络异常'; 
+                resultEl.className = 'value warning';
+            });
+        }
+
+        function startDetection() {
+            fetch('/api/start', {method: 'POST'}).then(r => r.json()).then(d => {
+                alert(d.message || '已启动'); updateStatus();
+            });
+        }
+
+        function stopDetection() {
+            fetch('/api/stop', {method: 'POST'}).then(r => r.json()).then(d => {
+                alert(d.message || '已停止'); updateStatus();
+            });
+        }
+
+        function captureImage() {
+            fetch('/api/capture', {method: 'POST'}).then(r => r.json()).then(d => {
+                alert(d.message || '拍照成功'); updateLatest();
+            });
+        }
+
+        // 运行时间计时器
+        let startTime = Date.now();
+        function updateRunTime() {
+            const e = Math.floor((Date.now() - startTime) / 1000);
+            const h = String(Math.floor(e / 3600)).padStart(2, '0');
+            const m = String(Math.floor((e % 3600) / 60)).padStart(2, '0');
+            const s = String(e % 60).padStart(2, '0');
+            document.getElementById('runTime').textContent = `${h}:${m}:${s}`;
+        }
+
+        setInterval(updateStatus, 2000);
+        setInterval(updateLatest, 2000);
+        setInterval(updateRunTime, 1000);
+        updateStatus(); updateLatest();
+    </script>
+</body>
+</html>

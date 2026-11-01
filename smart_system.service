@@ -1,0 +1,21 @@
+[Unit]
+Description=Smart Leaf Health Monitor System
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/smart_system/flask_app
+ExecStart=/home/pi/smart_system/venv/bin/python /home/pi/smart_system/flask_app/main.py
+Restart=always
+RestartSec=10
+# 摄像头/GPU 相关：给 tflite 推理留出线程数
+Environment="PYTHONUNBUFFERED=1"
+Environment="OPENCV_VIDEOIO_PRIORITY_MSMF=0"
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
